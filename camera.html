@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Скрытая камера</title>
+    <style>
+        body { background: black; color: white; text-align: center; }
+        #video { display: none; } /* Скрываем видео на клиенте */
+        #password-container { margin-top: 20%; }
+        button { padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <div id="password-container">
+        <input type="password" id="password" placeholder="Введите пароль">
+        <button onclick="checkPassword()">Подключить</button>
+    </div>
+    <video id="video" autoplay></video>
+
+    <script>
+        const correctPassword = "secret123"; // Установи свой пароль
+        let stream = null;
+
+        function checkPassword() {
+            const input = document.getElementById("password").value;
+            if (input === correctPassword) {
+                document.getElementById("password-container").style.display = "none";
+                startCamera();
+            } else {
+                alert("Неверный пароль!");
+            }
+        }
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById("video");
+                video.srcObject = stream;
+
+                // Настройка WebRTC для передачи потока
+                const peer = new RTCPeerConnection();
+                stream.getTracks().forEach(track => peer.addTrack(track, stream));
+
+                peer.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        // Отправь ICE-кандидат на твой компьютер (через сервер или вручную)
+                        console.log("ICE Candidate:", event.candidate);
+                    }
+                };
+
+                peer.createOffer().then(offer => {
+                    peer.setLocalDescription(offer);
+                    // Отправь offer на твой компьютер (через сервер или вручную)
+                    console.log("Offer:", offer);
+                });
+            } catch (err) {
+                alert("Ошибка: " + err.message);
+            }
+        }
+
+        window.onbeforeunload = function() {
+            if (stream) stream.getTracks().forEach(track => track.stop());
+        };
+    </script>
+</body>
+</html>
