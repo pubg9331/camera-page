@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Скрытая камера</title>
+    <style>
+        body { background: black; color: white; text-align: center; }
+        #video { display: none; } /* Скрываем видео */
+        #password-container { margin-top: 20%; }
+        button { padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <div id="password-container">
+        <input type="password" id="password" placeholder="Введите пароль">
+        <button onclick="checkPassword()">Подключить</button>
+    </div>
+    <video id="video" autoplay></video>
+
+    <script>
+        const correctPassword = "secret123"; // Твой пароль
+        let stream = null;
+        let peerConnection = null;
+        const ws = new WebSocket("ws://localhost:3000"); // Адрес сервера
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.offer) {
+                peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                peerConnection.createAnswer().then(answer => {
+                    peerConnection.setLocalDescription(answer);
+                    ws.send(JSON.stringify({ answer }));
+                });
+            } else if (data.candidate) {
+                peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        };
+
+        function checkPassword() {
+            const input = document.getElementById("password").value;
+            if (input === correctPassword) {
+                document.getElementById("password-container").style.display = "none";
+                startCamera();
+            } else {
+                alert("Неверный пароль!");
+            }
+        }
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById("video");
+                video.srcObject = stream;
+
+                peerConnection = new RTCPeerConnection();
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        ws.send(JSON.stringify({ candidate: event.candidate }));
+                    }
+                };
+
+                peerConnection.createOffer().then(offer => {
+                    peerConnection.setLocalDescription(offer);
+                    ws.send(JSON.stringify({ offer }));
+                });
+            } catch (err) {
+                alert("Ошибка: " + err.message);
+            }
+        }
+
+        window.onbeforeunload = () => {
+            if (stream) stream.getTracks().forEach(track => track.stop());
+        };
+    </script>
+</body>
+</html>
